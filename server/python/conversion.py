@@ -1,6 +1,7 @@
 import csv
 import os
-with open(str(os.path.dirname(os.path.abspath(__file__))) + '/../uploads/input.vcf', 'r') as vcf_file, open('./../uploads/output.csv', 'w', newline='') as csv_file:
+import sys
+with open(str(sys.argv[1]), 'r') as vcf_file, open(str(os.path.dirname(os.path.abspath(__file__))) + '/../uploads/output.csv', 'w', newline='') as csv_file:
     writer = csv.writer(csv_file)
     header = ['CHROM', 'POS', 'REF','ALT','TYPE','IMPACT','NAME']
     writer.writerow(header)
