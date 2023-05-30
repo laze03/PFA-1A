@@ -1,11 +1,13 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 # Chargement des données
-df = pd.read_csv("output.csv", delimiter=",")
+df = pd.read_csv((str(os.path.dirname(os.path.abspath(__file__))) + '/../uploads/output.csv'), delimiter=",")
 
 # Graphique de distribution par gène
 df['NAME'].value_counts().plot(kind='bar', figsize=(10,5))
+print (i  for i in df['NAME'].value_counts())
 plt.title('Distribution par gène')
 plt.xlabel('Gène')
 plt.ylabel('Nombre de mutations')

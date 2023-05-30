@@ -1,8 +1,9 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 # Charger le fichier CSV en un DataFrame pandas
-df = pd.read_csv('output.csv')
+df = pd.read_csv(str(os.path.dirname(os.path.abspath(__file__))) + '/../uploads/output.csv')
 
 # Extraire les données de chromosome et de nom de gène
 chromosomes = df['CHROM']

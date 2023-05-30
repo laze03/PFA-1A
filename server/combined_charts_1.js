@@ -1,57 +1,11 @@
-const express = require("express");
-const PORT = 5000;
-const fileUpload = require("express-fileupload");
-const cors = require("cors");
-const { spawn } = require("child_process");
 const fs = require("fs");
 const csv = require("csv-parser");
+const express = require("express");
+const cors = require("cors");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
-app.use(fileUpload());
-
-// app.post("/api", (req, res) => {
-//   const filename = Date.now() + "_" + req.files.file.name;
-//   const file = req.files.file;
-//   let uploadPath = __dirname + "/uploads/" + filename;
-//   file.mv(uploadPath, (err) => {
-//     if (err) {
-//       return res.send(err);
-//     }
-//   });
-//   res.send(uploadPath);
-// });
-
-app.post("/upload", (req, res) => {
-  const filename = Date.now() + "_" + req.files.file.name;
-  const file = req.files.file;
-  let uploadPath = __dirname + "/uploads/" + filename;
-  file.mv(uploadPath, (err) => {
-    if (err) {
-      return res.send(err);
-    }
-  });
-  const pyProg = spawn("python", [
-    __dirname + "/python/JSON_distribution_par_chromosome.py",
-    uploadPath,
-  ]);
-  pyProg.stdout.on("data", function (data) {
-    console.log("stdout: " + data.toString());
-    res.send(data.toString());
-  });
-  pyProg.stderr.on("data", (data) => {
-    console.log("stderr: " + data.toString());
-  });
-  pyProg.on("close", (code) => {
-    console.log("child process exited with code " + code.toString());
-  });
-  // res.send(uploadPath);
-});
-
-app.get("/upload", (req, res) => {
-  res.json({ users: ["user1", "user2"] });
-});
 
 //code1: pie
 const JSON_nombre_de_mutations_par_impact_par_gène = () => {
@@ -88,6 +42,8 @@ const JSON_nombre_de_mutations_par_impact_par_gène = () => {
   });
 };
 
+JSON_nombre_de_mutations_par_impact_par_gène();
+
 //code2: dans doc google bar, but u said pie is better w i agree with this
 
 const JSON_distribution_impact_par_mutation = () => {
@@ -109,6 +65,7 @@ const JSON_distribution_impact_par_mutation = () => {
       });
   });
 };
+JSON_distribution_impact_par_mutation();
 
 //code3 & code4 je pense que c la même chose, nbre de gènes par chrom <=> nbre de mutations par chrom: à confirmer, si oui supprime l'un des codes 3 ou 4
 
@@ -142,64 +99,10 @@ const JSON_distribution_des_gènes_par_chromosome = () => {
   });
 };
 
-//code5: bar
+//code4: bar
 
-// const JSON_distribution_par_type_de_mutation = () => {
-//   return new Promise((resolve) => {
-//     const data = [];
-//     fs.createReadStream(__dirname + "/uploads/" + "output.csv")
-//       .pipe(csv())
-//       .on("data", (row) => {
-//         data.push(row);
-//       })
-//       .on("end", () => {
-//         const counts = {};
-//         data.forEach((row) => {
-//           const type = row.TYPE;
-//           if (counts[type]) {
-//             counts[type]++;
-//           } else {
-//             counts[type] = 1;
-//           }
-//         });
-
-//         resolve(counts);
-//       });
-//   });
-// };
-
-// const JSON_distribution_par_type_de_mutation = () => {
-//   return new Promise((resolve, reject) => {
-//     const data = [];
-//     fs.createReadStream(__dirname + "/uploads/" + "output.csv")
-//       .pipe(csv())
-//       .on("data", (row) => {
-//         data.push(row);
-//       })
-//       .on("end", () => {
-//         const counts = {};
-//         data.forEach((row) => {
-//           const types = row.TYPE.split("&"); // Sépare les types concaténés par "&"
-//           types.forEach((type) => {
-//             const trimmedType = type.trim(); // Supprime les espaces en début et fin de type
-//             if (counts[trimmedType]) {
-//               counts[trimmedType]++;
-//             } else {
-//               counts[trimmedType] = 1;
-//             }
-//           });
-//         });
-//         counts;
-//         resolve(counts);
-//       })
-//       .on("error", (error) => {
-//         reject(error);
-//       });
-//   });
-// };
-
-const JSON_distribution_par_type_de_mutation = () => {
-  return new Promise((resolve, reject) => {
+const JSON_distribution_par_chromosome = () => {
+  return new Promise((resolve) => {
     const data = [];
     fs.createReadStream(__dirname + "/uploads/" + "output.csv")
       .pipe(csv())
@@ -209,41 +112,48 @@ const JSON_distribution_par_type_de_mutation = () => {
       .on("end", () => {
         const counts = {};
         data.forEach((row) => {
-          const types = row.TYPE.split("&"); // Sépare les types concaténés par "&"
-          types.forEach((type) => {
-            const trimmedType = type.trim(); // Supprime les espaces en début et fin de type
-            const formattedType = trimmedType
-              .replace(/_/g, " ")
-              .replace(/variant/g, "v"); // Remplace "_" par un espace et "variant" par "v"
-            if (counts[formattedType]) {
-              counts[formattedType]++;
-            } else {
-              counts[formattedType] = 1;
-            }
-          });
+          const chromosome = row.CHROM;
+          if (counts[chromosome]) {
+            counts[chromosome]++;
+          } else {
+            counts[chromosome] = 1;
+          }
         });
 
         resolve(counts);
+      });
+  });
+};
+
+//code5: bar
+
+const JSON_distribution_par_type_de_mutation = () => {
+  return new Promise((resolve) => {
+    const data = [];
+    fs.createReadStream(__dirname + "/uploads/" + "output.csv")
+      .pipe(csv())
+      .on("data", (row) => {
+        data.push(row);
       })
-      .on("error", (error) => {
-        reject(error);
+      .on("end", () => {
+        const counts = {};
+        data.forEach((row) => {
+          const type = row.TYPE;
+          if (counts[type]) {
+            counts[type]++;
+          } else {
+            counts[type] = 1;
+          }
+        });
+
+        resolve(counts);
       });
-  })
-    .then((counts) => {
-      const formattedCounts = {};
-      Object.keys(counts).forEach((key) => {
-        formattedCounts[key] = counts[key];
-      });
-      return formattedCounts;
-    })
-    .catch((error) => {
-      console.error(error);
-    });
+  });
 };
 
 //code6: bar
 
-const JSON_nbre_mutation_par_impact_par_chromosome = () => {
+const JSON_nbre_mutation_par_impact_par_chrom = () => {
   return new Promise((resolve) => {
     const data = [];
     fs.createReadStream(__dirname + "/uploads/" + "output.csv")
@@ -258,12 +168,10 @@ const JSON_nbre_mutation_par_impact_par_chromosome = () => {
           const chrom = row.CHROM;
           const impact = row.IMPACT;
           if (!chromImpactCounts[chrom]) {
-            chromImpactCounts[chrom] = {
-              MODIFIER: 0,
-              MODERATE: 0,
-              HIGH: 0,
-              LOW: 0,
-            };
+            chromImpactCounts[chrom] = {};
+          }
+          if (!chromImpactCounts[chrom][impact]) {
+            chromImpactCounts[chrom][impact] = 0;
           }
           chromImpactCounts[chrom][impact]++;
         });
@@ -280,17 +188,19 @@ const combineGraphData = async () => {
     await JSON_distribution_impact_par_mutation();
   const distributionDesGènesParChromosome =
     await JSON_distribution_des_gènes_par_chromosome();
+  const distributionParChromosome = await JSON_distribution_par_chromosome();
   const distributionParTypeDeMutation =
     await JSON_distribution_par_type_de_mutation();
   const nbreMutationParImpactParChrom =
-    await JSON_nbre_mutation_par_impact_par_chromosome();
+    await JSON_nbre_mutation_par_impact_par_chrom();
 
   const combinedData = {
     nombre_de_mutations_par_impact_par_gène: nombreDeMutationsParImpactParGène,
     distribution_impact_par_mutation: distributionImpactParMutation,
-    distribution_des_gènes_par_chromosome: distributionDesGènesParChromosome,
+    distribution_des_gènes_par_chromosom: distributionDesGènesParChromosome,
+    distribution_par_chromosome: distributionParChromosome,
     distribution_par_type_de_mutation: distributionParTypeDeMutation,
-    nombre_mutation_par_impact_par_chromosome: nbreMutationParImpactParChrom,
+    nbre_mutation_par_impact_par_chrom: nbreMutationParImpactParChrom,
   };
 
   const combinedDataJson = JSON.stringify(combinedData);
@@ -303,4 +213,4 @@ app.get("/dashboard", async (req, res) => {
   res.send(combinedDataJson);
 });
 
-app.listen(PORT, () => console.log(`start listening on port : ${PORT}`));
+app.listen(7000, () => console.log("server started on port 7000"));
