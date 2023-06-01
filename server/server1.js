@@ -25,95 +25,35 @@ app.use(fileUpload());
 //   res.send(uploadPath);
 // });
 
-function vcfToCsv(filepath, callback) {
-  const csvFilePath = __dirname + "/uploads/output.csv";
-  fs.readFile(filepath, "utf8", (err, data) => {
-    if (err) {
-      console.error("Error reading VCF file:", err);
-      return callback(err);
-    }
-
-    const lines = data.trim().split("\n");
-    const header = ["CHROM", "POS", "REF", "ALT", "TYPE", "IMPACT", "GENE"];
-    const csvContent = [header];
-
-    for (const line of lines) {
-      if (!line.startsWith("#")) {
-        const fields = line.split("\t");
-        const chrom = fields[0];
-        const pos = fields[1];
-        const ref = fields[3];
-        const alt = fields[4];
-        const info = fields[7].split("|");
-        const type = info[1];
-        const impact = info[2];
-        const gene = info[3];
-        csvContent.push([chrom, pos, ref, alt, type, impact, gene]);
-      }
-    }
-
-    const csvData = csvContent.map((row) => row.join(",")).join("\n");
-
-    fs.writeFile(csvFilePath, csvData, "utf8", (err) => {
-      if (err) {
-        console.error("Error writing CSV file:", err);
-        return callback(err);
-      }
-
-      console.log("CSV file generated successfully.");
-      callback(null);
-    });
-  });
-}
-
 app.post("/upload", (req, res) => {
   const filename = Date.now() + "_" + req.files.file.name;
   const file = req.files.file;
   let uploadPath = __dirname + "/uploads/" + filename;
-  console.log(uploadPath);
   file.mv(uploadPath, (err) => {
     if (err) {
-      console.log("Error uploading file:", err);
-      return res.status(500).send("Error uploading file.");
+      return res.send(err);
     }
-
-    vcfToCsv(uploadPath, (err) => {
-      if (err) {
-        console.log("Error converting VCF to CSV:", err);
-        return res.status(500).send("Error converting VCF to CSV.");
-      }
-
-      console.log("Success");
-      return res.status(200).send("File uploaded and converted successfully.");
-    });
   });
+  const pyProg = spawn("python", [
+    __dirname + "/python/JSON_distribution_par_chromosome.py",
+    uploadPath,
+  ]);
+  pyProg.stdout.on("data", function (data) {
+    console.log("stdout: " + data.toString());
+    res.send(data.toString());
+  });
+  pyProg.stderr.on("data", (data) => {
+    console.log("stderr: " + data.toString());
+  });
+  pyProg.on("close", (code) => {
+    console.log("child process exited with code " + code.toString());
+  });
+  // res.send(uploadPath);
 });
 
-// app.post("/upload", (req, res) => {
-//   const filename = Date.now() + "_" + req.files.file.name;
-//   const file = req.files.file;
-//   let uploadPath = __dirname + "/uploads/" + filename;
-//   file.mv(uploadPath, (err) => {
-//     if (err) {
-//       return res.send(err);
-//     }
-//   });
-//   const pyProg = spawn("python", [
-//     __dirname + "/python/JSON_distribution_par_chromosome.py",
-//     uploadPath,
-//   ]);
-//   pyProg.stdout.on("data", function (data) {
-//     console.log("stdout: " + data.toString());
-//     res.send(data.toString());
-//   });
-//   pyProg.stderr.on("data", (data) => {
-//     console.log("stderr: " + data.toString());
-//   });
-//   pyProg.on("close", (code) => {
-//     console.log("child process exited with code " + code.toString());
-//   });
-//   // res.send(uploadPath);
-// });
+app.get("/upload", (req, res) => {
+  res.json({ users: ["user1", "user2"] });
+});
 
 //code1: pie
 const JSON_nombre_de_mutations_par_impact_par_gène = () => {
@@ -125,7 +65,7 @@ const JSON_nombre_de_mutations_par_impact_par_gène = () => {
       .on("end", () => {
         // Compter le nombre de mutations par gène
         const geneMutationCounts = results.reduce((acc, row) => {
-          const gene = row["GENE"];
+          const gene = row["NAME"];
           if (!acc[gene]) {
             acc[gene] = 0;
           }
@@ -382,6 +322,7 @@ app.get("/dashboard", async (req, res) => {
 //     });
 // });
 
+
 const outputJson = () => {
   return new Promise((resolve, reject) => {
     const data = [];
@@ -390,14 +331,7 @@ const outputJson = () => {
       .pipe(csv())
       .on("data", (row) => {
         // Modification des valeurs de TYPE
-        row.TYPE = row.TYPE.replace(/_/g, " ").replace(/&/g, " & ");
-
-        // Rename the "NAME" key to "GENE"
-        if (row.hasOwnProperty("NAME")) {
-          row.GENE = row.NAME;
-          delete row.NAME;
-        }
-
+        row.TYPE = row.TYPE.replace(/_/g, ' ').replace(/&/g, ' & ');
         data.push(row);
       })
       .on("end", () => {
@@ -408,8 +342,10 @@ const outputJson = () => {
       });
   });
 };
+
+
 function choices(data) {
-  const choices = { CHROM: [], TYPE: [], IMPACT: [], GENE: [] };
+  const choices = { CHROM: [], TYPE: [], IMPACT: [], NAME: [] };
   for (const item of data) {
     for (const key in choices) {
       if (!choices[key].includes(item[key])) {
@@ -453,34 +389,32 @@ app.get("/table", async (req, res) => {
   }
 });
 
-function filtre(listeJson, genre, filtres) {
-  const listeJsonFiltree = [];
+function filtre(liste, genre, filtres) {
+  const listeFiltre = [];
   if (filtres.length === 0) {
-    return listeJson;
+    return liste;
   }
-  for (const item of listeJson) {
+  for (const item of liste) {
     if (filtres.includes(item[genre])) {
-      listeJsonFiltree.push(item);
+      listeFiltre.push(item);
     }
   }
-  return listeJsonFiltree;
+  return listeFiltre;
 }
 
-const genres = ["CHROM", "TYPE", "IMPACT", "GENE"];
+const genres = ["CHROM", "TYPE", "IMPACT", "NAME"];
 
-async function filtrage(filtres) {
-  let listeFiltree = await outputJson();
-
+function filtrage(filtres) {
+  let listeFiltree = outputJson();
   for (const genre of genres) {
     listeFiltree = filtre(listeFiltree, genre, filtres[genre]);
   }
   return listeFiltree;
 }
 
-app.post("/table", async (req, res) => {
+app.post("/filters", async (req, res) => {
   const filtres = req.body;
-  const listeFiltree = await filtrage(filtres);
-  console.log(listeFiltree);
+  const listeFiltree = filtrage(filtres);
   res.json(listeFiltree);
 });
 
